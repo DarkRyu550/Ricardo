@@ -1,0 +1,7 @@
+[workspace]
+members = [
+	"gavle",
+	"gavle/example",
+	"environment",
+	"exercises/one",
+]

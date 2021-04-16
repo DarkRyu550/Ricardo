@@ -1,0 +1,23 @@
+[package]
+name = "gavle"
+version = "0.1.0"
+authors = ["Matheus Branco Borella <dark.ryu.550@gmail.com>"]
+edition = "2018"
+description = """
+OpenGL ES wrapper crate modeled after wgpu.
+
+OpenGL ES wrapper and best recaida referencing device because eu nao consigo
+mais irmao I can't admit que passou um ano e tu nao passa and the sertanejo of
+the corno is the only way to cope with this shit.
+
+See Ze Neto & Cristiano for further information.
+"""
+
+[dependencies]
+log       = "0.4"
+glow      = "0.8"
+thiserror = "1"
+smallvec  = "1"
+tinyvec   = "1"
+arrayvec  = "0.6"
+generational-arena = "0.2"
