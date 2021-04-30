@@ -144,7 +144,14 @@ impl ExamplePass {
 							cull_mode: CullMode::None,
 							polygon_mode: PolygonMode::Fill
 						},
-						fragment: Some(&fragment),
+						fragment: Some(FragmentState {
+							shader: &fragment,
+							targets: ColorTargetState {
+								alpha_blend: BlendState::REPLACE,
+								color_blend: BlendState::REPLACE,
+								write_mask: ColorWrite::all(),
+							}
+						}),
 						depth_stencil: None
 					}).unwrap();
 
