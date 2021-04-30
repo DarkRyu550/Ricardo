@@ -1,7 +1,7 @@
 use winit::dpi::PhysicalSize;
 use winit::event_loop::{EventLoop, ControlFlow};
 use winit::window::{WindowBuilder, WindowId};
-use gavle::{BufferDescriptor, BufferProfile, RenderPipelineDescriptor, VertexState, PrimitiveState, PrimitiveTopology, IndexFormat, FrontFace, CullMode, PolygonMode, ShaderSource, VertexAttribute, VertexType, VertexBufferLayout, VertexComponents, DepthStencilState, CompareFunction, StencilState, RenderPassDescriptor, DefaultFramebufferDescriptor, LoadOp, Color, TextureDescriptor, TextureExtent, TextureFormat, Mipmap, UniformGroupDescriptor, UniformGroupEntry, UniformBind, TextureFilter, Device, Viewport, BufferLoadOp};
+use gavle::*;
 use std::borrow::Cow;
 use std::convert::TryFrom;
 use std::time::Duration;
@@ -168,7 +168,14 @@ fn run<F, G, W>(
 				cull_mode: CullMode::None,
 				polygon_mode: PolygonMode::Fill
 			},
-			fragment: Some(&fragment_shader),
+			fragment: Some(FragmentState {
+				shader: &fragment_shader,
+				targets: ColorTargetState {
+					alpha_blend: BlendState::REPLACE,
+					color_blend: BlendState::REPLACE,
+					write_mask: ColorWrite::all()
+				}
+			}),
 			depth_stencil: Some(DepthStencilState {
 				depth_write_enabled: true,
 				depth_compare: CompareFunction::Less,

@@ -97,36 +97,56 @@ macro_rules! instance_buffers {
 			pub fn slice<R>(&self, range: R) -> BufferSlice
 				where R: RangeBounds<u32> {
 
-				let beg = match range.start_bound() {
+				let offset = match range.start_bound() {
 					Bound::Unbounded => 0,
 					Bound::Excluded(val) => val.checked_add(1)
 						.expect("lower range bound value would overflow u32 range"),
 					Bound::Included(val) => *val
 				};
 
-				let end = match range.end_bound() {
-					Bound::Unbounded => self.len().checked_sub(1)
-						.expect("Taking slice of empty buffer"),
-					Bound::Excluded(val) => val.checked_sub(1)
-						.expect("upper range bound value would underflow u32 range"),
-					Bound::Included(val) => *val
-				};
+				let length = match range.end_bound() {
+					Bound::Unbounded => self.len() - offset,
+					Bound::Excluded(val) => {
+						let val = *val;
 
-				if beg > end {
-					panic!("lower range bound {} is greater than upper range bound {}",
-						beg, end)
-				}
-				if end >= self.len() {
-					panic!("upper range bound {} is greater than the length {} of the \
-						buffer",
-						end, self.len())
-				}
+						if val > self.len() {
+							panic!("upper range bound {} is greater than the \
+								length {} of the buffer",
+								val, self.len())
+						}
+						if offset > val {
+							panic!("lower range bound {} is greater than upper \
+								range bound {}",
+								offset, val)
+						}
+
+						val.checked_sub(offset).unwrap()
+					},
+					Bound::Included(val) => {
+						let val = *val;
+
+						if val >= self.len() {
+							panic!("upper range bound ={} is greater than the \
+								length {} of the buffer",
+								val, self.len())
+						}
+						if offset > val {
+							panic!("lower range bound {} is greater than upper \
+								range bound {}",
+								offset, val)
+						}
+
+						val.checked_sub(offset).unwrap()
+							.checked_add(1)
+							.expect("upper range bound overflows u32 range")
+					},
+				};
 
 				BufferSlice {
 					buffer: &self.inner,
 					target: $target,
-					begin: beg,
-					end
+					offset,
+					length
 				}
 			}
 		}
@@ -209,9 +229,9 @@ pub struct BufferSlice<'a> {
 	/** Buffer bind target. */
 	target: u32,
 	/** Beginning offset of the slice, inclusive. */
-	begin: u32,
-	/** Ending offset of the slice, inclusive. */
-	end: u32,
+	offset: u32,
+	/** Length of the slice. */
+	length: u32,
 }
 impl<'a> BufferSlice<'a> {
 	/** Tries to map this buffer read-only and fails if the buffer has already
@@ -230,20 +250,17 @@ impl<'a> BufferSlice<'a> {
 			MapState::Unmapped => MapState::Mapped,
 		};
 
-		let len = {
-			let dist = self.end.checked_sub(self.begin).unwrap();
-			let dist = dist.saturating_add(1);
-
-			dist
-		};
-
+		let len = self.length;
 		let gl = self.buffer.context.as_ref();
-		let data = if self.buffer.information.capabilities.buffer_mapping {
+		let data = if len == 0 {
+			/* Empty slice. */
+			BufferData::Empty { nothing: [] }
+		} else if self.buffer.information.capabilities.buffer_mapping {
 			let ptr = unsafe {
 				gl.bind_buffer(self.target, Some(self.buffer.buffer));
 				let ptr = gl.map_buffer_range(
 					self.target,
-					i32::try_from(self.begin).unwrap(),
+					i32::try_from(self.offset).unwrap(),
 					i32::try_from(len).unwrap(),
 					{
 						let access = glow::MAP_READ_BIT | glow::MAP_WRITE_BIT;
@@ -270,7 +287,7 @@ impl<'a> BufferSlice<'a> {
 			unsafe {
 				gl.get_buffer_sub_data(
 					self.target,
-					i32::try_from(self.begin).unwrap(),
+					i32::try_from(self.offset).unwrap(),
 					&mut buf);
 			}
 
@@ -316,20 +333,17 @@ impl<'a> BufferSlice<'a> {
 			MapState::Unmapped => MapState::Mapped,
 		};
 
-		let len = {
-			let dist = self.end.checked_sub(self.begin).unwrap();
-			let dist = dist.saturating_add(1);
-
-			dist
-		};
-
+		let len = self.length;
 		let gl = self.buffer.context.as_ref();
-		let data = if self.buffer.information.capabilities.buffer_mapping {
+		let data = if len == 0 {
+			/* This is an empty buffer. */
+			BufferData::Empty { nothing: [] }
+		} else if self.buffer.information.capabilities.buffer_mapping {
 			let ptr = unsafe {
 				gl.bind_buffer(self.target, Some(self.buffer.buffer));
 				let ptr = gl.map_buffer_range(
 					self.target,
-					i32::try_from(self.begin).unwrap(),
+					i32::try_from(self.offset).unwrap(),
 					i32::try_from(len).unwrap(),
 					{
 						let access = glow::MAP_READ_BIT | glow::MAP_WRITE_BIT;
@@ -345,7 +359,6 @@ impl<'a> BufferSlice<'a> {
 
 				ptr
 			};
-
 			match op {
 				BufferLoadOp::Clear(val) => unsafe {
 					/* Clear the mapped range. */
@@ -359,7 +372,6 @@ impl<'a> BufferSlice<'a> {
 					 * and DontCare is by definition, the same as Load. */
 				}
 			}
-
 			BufferData::Mapped {
 				data: ptr,
 				len: usize::try_from(len).unwrap(),
@@ -368,23 +380,21 @@ impl<'a> BufferSlice<'a> {
 		} else {
 			let buf = match op {
 				BufferLoadOp::Clear(val) =>
-					/* Create an empty buffer with the given initial value. */
+				/* Create an empty buffer with the given initial value. */
 					vec![val; usize::try_from(len).unwrap()],
 				BufferLoadOp::DontCare =>
-					/* Create an empty buffer that is zero-initialized. */
+				/* Create an empty buffer that is zero-initialized. */
 					vec![0; usize::try_from(len).unwrap()],
 				BufferLoadOp::Load => unsafe {
 					/* Download the buffer data from the device. */
 					let mut buf = vec![0; usize::try_from(len).unwrap()];
 					gl.get_buffer_sub_data(
 						self.target,
-						i32::try_from(self.begin).unwrap(),
+						i32::try_from(self.offset).unwrap(),
 						&mut buf);
-
 					buf
 				}
 			};
-
 			BufferData::Mirrored {
 				storage: buf.into_boxed_slice(),
 				mutated: false
@@ -482,6 +492,15 @@ enum BufferData {
 		/** Whether the storage has been accessed mutably. */
 		mutated: bool,
 	},
+	/** The buffer has a length of zero and isn't backed by anything. */
+	Empty {
+		/** Ah yes, the _nothing array_.
+		 *
+		 * We need a valid slice for empty buffers, just as we would need for
+		 * any of the other valid buffer storage types. This is actually a
+		 * pretty good way to do it, despite how silly it looks. */
+		nothing: [u8; 0]
+	},
 	/** This reference has been terminated. */
 	Terminated
 }
@@ -496,7 +515,7 @@ impl BufferData {
 				if mutated {
 					gl.flush_mapped_buffer_range(
 						slice.target,
-						i32::try_from(slice.begin).unwrap(),
+						i32::try_from(slice.offset).unwrap(),
 						i32::try_from(len).unwrap());
 				}
 				gl.unmap_buffer(slice.target);
@@ -506,11 +525,11 @@ impl BufferData {
 				if mutated {
 					gl.buffer_sub_data_u8_slice(
 						slice.target,
-						i32::try_from(slice.begin).unwrap(),
+						i32::try_from(slice.offset).unwrap(),
 						&*storage)
 				}
 			},
-			Self::Terminated => { /* No-op. */ }
+			Self::Terminated | Self::Empty { .. } => { /* No-op. */ }
 		}
 	}
 }
@@ -521,8 +540,9 @@ impl AsRef<[u8]> for BufferData {
 				std::slice::from_raw_parts(*data, *len)
 			},
 			Self::Mirrored { storage, .. } => &*storage,
+			Self::Empty { nothing } => &nothing[..],
 			Self::Terminated =>
-				panic!("called as_ref() on a terminated BufferData")
+				panic!("called as_ref() on a terminated BufferData"),
 		}
 	}
 }
@@ -539,6 +559,7 @@ impl AsMut<[u8]> for BufferData {
 				*mutated = true;
 				&mut *storage
 			},
+			Self::Empty { nothing } => &mut nothing[..],
 			Self::Terminated =>
 				panic!("called as_mut() on a terminated BufferData")
 		}

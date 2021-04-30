@@ -415,7 +415,14 @@ impl Device {
 			framebuffer: descriptor.framebuffer,
 			stencil_reference: 0,
 			stencil_setup: false,
-			draw_buffers_setup: false
+			draw_buffers_setup: false,
+			blending_setup: false,
+			color_blend_constant: Color {
+				red: 0.0,
+				green: 0.0,
+				blue: 0.0,
+				alpha: 1.0
+			}
 		}
 	}
 
@@ -674,7 +681,7 @@ impl Device {
 		let _atom = self.pipeline_lock.borrow_mut();
 
 		let gl = self.context.as_ref();
-		let (program, vertex_shader, fragment_shader) = unsafe {
+		let (program, vertex_shader, fragment_shader, color_target_state) = unsafe {
 			let program = gl.create_program()
 				.map_err(|what|
 					RenderPipelineError::ProgramCreationFailed { what })?;
@@ -682,14 +689,24 @@ impl Device {
 			let vertex_shader = descriptor.vertex.shader.clone();
 			gl.attach_shader(program, vertex_shader.as_raw_handle());
 
-			let fragment_shader = match descriptor.fragment {
-				Some(fragment_shader) => {
-					let fragment_shader = fragment_shader.clone();
+			let (fragment_shader, color_target_state) = match &descriptor.fragment {
+				Some(fragment_state) => {
+					let fragment_shader = fragment_state.shader.clone();
 					gl.attach_shader(program, fragment_shader.as_raw_handle());
 
-					Some(fragment_shader)
+
+					(
+						Some(fragment_shader),
+						fragment_state.targets
+					)
 				},
-				None => None
+				None => (
+					None,
+					ColorTargetState {
+						alpha_blend: BlendState::REPLACE,
+						color_blend: BlendState::REPLACE,
+						write_mask: ColorWrite::all()
+					})
 			};
 
 			gl.link_program(program);
@@ -703,7 +720,7 @@ impl Device {
 				}
 			}
 
-			(program, vertex_shader, fragment_shader)
+			(program, vertex_shader, fragment_shader, color_target_state)
 		};
 
 		Ok(RenderPipeline {
@@ -719,7 +736,8 @@ impl Device {
 						inner: fragment_shader.inner.clone()
 					}),
 				primitive_state: descriptor.primitive_state,
-				depth_stencil: descriptor.depth_stencil
+				depth_stencil: descriptor.depth_stencil,
+				color_target_state
 			})
 		})
 	}

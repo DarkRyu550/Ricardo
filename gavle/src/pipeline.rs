@@ -3,7 +3,7 @@ use std::rc::Rc;
 use glow::{HasContext, Context};
 use std::borrow::Cow;
 use crate::access::{AccessLock, UnitAccessLock};
-use crate::{VertexBuffer, IndexBuffer, Framebuffer, FramebufferVariants};
+use crate::{VertexBuffer, IndexBuffer, Framebuffer, FramebufferVariants, Color};
 use std::convert::TryFrom;
 use std::collections::HashMap;
 use std::cell::Cell;
@@ -93,6 +93,8 @@ pub(crate) struct InnerRenderPipeline {
 	/** The effect of draw calls on the depth and stencil aspects of the output
 	 * target, if any. */
 	pub(crate) depth_stencil: Option<DepthStencilState>,
+	/** The operations to be applied to the color targets of this pipeline. */
+	pub(crate) color_target_state: ColorTargetState
 }
 impl Drop for InnerRenderPipeline {
 	fn drop(&mut self) {
@@ -164,6 +166,13 @@ impl RenderPipeline {
 		} else {
 			gl.disable(glow::DEPTH_TEST)
 		}
+
+		/* Set up color masking. */
+		gl.color_mask(
+			self.inner.color_target_state.write_mask.contains(ColorWrite::RED),
+			self.inner.color_target_state.write_mask.contains(ColorWrite::GREEN),
+			self.inner.color_target_state.write_mask.contains(ColorWrite::BLUE),
+			self.inner.color_target_state.write_mask.contains(ColorWrite::ALPHA));
 	}
 
 	/** Checks whether the depth aspect is written to by this pipeline. */
@@ -280,6 +289,42 @@ impl RenderPipeline {
 				stencil.pass_op.as_opengl())
 		} else {
 			gl.disable(glow::STENCIL_TEST);
+		}
+	}
+
+	/** Sets up the blending state of the pipeline.
+	 *
+	 * This part of the setup requires an external reference value and thus it
+	 * is done separately from the rest of the setup, which is done in the
+	 * [`bind()`] function. */
+	pub(crate) unsafe fn blending_setup(&self, gl: &Context, constant: Color) {
+		let state = &self.inner.color_target_state;
+
+		let alpha_required = !state.alpha_blend.may_be_skipped();
+		let color_required = !state.color_blend.may_be_skipped();
+		let required = alpha_required || color_required;
+
+		if required {
+			gl.enable(glow::BLEND);
+			gl.blend_color(
+				constant.red,
+				constant.green,
+				constant.blue,
+				constant.alpha);
+
+			/* Set up the blend factors. */
+			gl.blend_func_separate(
+				state.color_blend.src_factor.as_opengl(),
+				state.color_blend.dst_factor.as_opengl(),
+				state.alpha_blend.src_factor.as_opengl(),
+				state.alpha_blend.dst_factor.as_opengl());
+
+			/* Set up the blend equations. */
+			gl.blend_equation_separate(
+				state.color_blend.operation.as_opengl(),
+				state.alpha_blend.operation.as_opengl());
+		} else {
+			gl.disable(glow::BLEND);
 		}
 	}
 
@@ -402,7 +447,7 @@ pub struct RenderPipelineDescriptor<'a> {
 	 * The fragment stage may be omitted from the pipeline if only the side
 	 * effects of the other stages are desired. Such as when calculating light
 	 * maps from the point of view of the light source. */
-	pub fragment: Option<&'a FragmentShader>,
+	pub fragment: Option<FragmentState<'a>>,
 	/** The effect of draw calls on the depth and stencil aspects of the output
 	 * target, if any. */
 	pub depth_stencil: Option<DepthStencilState>,
@@ -524,6 +569,153 @@ impl CompareFunction {
 	}
 }
 
+/** Describes the fragment process in a render pipeline. */
+pub struct FragmentState<'a> {
+	/** The compiled shader module for this stage. */
+	pub shader: &'a FragmentShader,
+	/** The color operations to be applied to all of the color targets.
+	 *
+	 * Normally this would be an array of valid color target states, one for
+	 * each target in the framebuffer. However, the implementation of OpenGL ES
+	 * backing this library does not support multiple color target states. */
+	pub targets: ColorTargetState
+}
+
+/** Describes the color state of a render pipeline. */
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct ColorTargetState {
+	/** The alpha blending that is used for this pipeline. */
+	pub alpha_blend: BlendState,
+	/** The color blending that is used for this pipeline. */
+	pub color_blend: BlendState,
+	/** Mask which enables or disables writes to different target channels. */
+	pub write_mask: ColorWrite
+}
+
+bitflags::bitflags! {
+	/// Color write mask. Disabled color channels will not be written to.
+    #[repr(transparent)]
+    pub struct ColorWrite: u32 {
+        /** Enable red channel writes. */
+        const RED = 1;
+        /** Enable green channel writes. */
+        const GREEN = 2;
+        /** Enable blue channel writes. */
+        const BLUE = 4;
+        /** Enable alpha channel writes. */
+        const ALPHA = 8;
+        /** Enable red, green, and blue channel writes. */
+        const COLOR = 7;
+        /** Enable writes to all channels. */
+        const ALL = 15;
+    }
+}
+
+/** Describes the blend state of a pipeline.
+ *
+ * Alpha blending is very complicated: see the OpenGL or Vulkan spec for more
+ * information. */
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct BlendState {
+	/** Multiplier for the source, which is produced by the fragment shader. */
+	pub src_factor: BlendFactor,
+	/** Multiplier for the destination, which is stored in the target. */
+	pub dst_factor: BlendFactor,
+	/** The binary operation applied to the source and destination, multiplied
+	 * by their respective factors. */
+	pub operation: BlendOperation,
+}
+impl BlendState {
+	/** Default blending state that replaces destination with the source. */
+	pub const REPLACE: Self = BlendState {
+		src_factor: BlendFactor::One,
+		dst_factor: BlendFactor::Zero,
+		operation: BlendOperation::Add,
+	};
+
+	/** Whether the operations described by this blending state have any
+	 * noticeable effect when compared to leaving blending disabled.
+	 *
+	 * This function lets us check whether enabling the blend operation is
+	 * really required. Which speeds up a few operations. */
+	pub(crate) fn may_be_skipped(&self) -> bool {
+		*self == Self::REPLACE
+	}
+}
+
+
+/** Alpha blend factor.
+ *
+ * Alpha blending is very complicated: see the OpenGL or Vulkan spec for more
+ * information. */
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum BlendFactor {
+	Zero,
+	One,
+	SrcColor,
+	OneMinusSrcColor,
+	SrcAlpha,
+	OneMinusSrcAlpha,
+	DstColor,
+	OneMinusDstColor,
+	DstAlpha,
+	OneMinusDstAlpha,
+	SrcAlphaSaturated,
+	BlendColor,
+	OneMinusBlendColor,
+}
+impl BlendFactor {
+	/** Get the OpenGL enum value for the current variant. */
+	fn as_opengl(&self) -> u32 {
+		match self {
+			Self::Zero => glow::ZERO,
+			Self::One => glow::ONE,
+			Self::SrcColor => glow::SRC_COLOR,
+			Self::OneMinusSrcColor => glow::ONE_MINUS_SRC_COLOR,
+			Self::DstColor => glow::DST_COLOR,
+			Self::OneMinusDstColor => glow::ONE_MINUS_DST_COLOR,
+			Self::SrcAlpha => glow::SRC_ALPHA,
+			Self::OneMinusSrcAlpha => glow::ONE_MINUS_SRC_ALPHA,
+			Self::DstAlpha => glow::DST_ALPHA,
+			Self::OneMinusDstAlpha => glow::ONE_MINUS_DST_ALPHA,
+			Self::BlendColor => glow::CONSTANT_COLOR,
+			Self::OneMinusBlendColor => glow::ONE_MINUS_CONSTANT_COLOR,
+			Self::SrcAlphaSaturated =>
+				/* Use the same as SrcAlpha. */
+				glow::SRC_ALPHA
+		}
+	}
+}
+
+/** Alpha blend operation.
+ *
+ * Alpha blending is very complicated: see the OpenGL or Vulkan spec for more
+ * information. */
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum BlendOperation {
+	Add,
+	Subtract,
+	ReverseSubtract,
+	Min,
+	Max,
+}
+impl BlendOperation {
+	/** Get the OpenGL enum value for the current variant. */
+	fn as_opengl(&self) -> u32 {
+		match self {
+			Self::Add => glow::FUNC_ADD,
+			Self::Subtract => glow::FUNC_SUBTRACT,
+			Self::ReverseSubtract => glow::FUNC_REVERSE_SUBTRACT,
+			Self::Min => glow::MIN,
+			Self::Max => glow::MAX,
+		}
+	}
+}
+impl Default for BlendOperation {
+	fn default() -> Self {
+		Self::Add
+	}
+}
 
 /** Description of the vertex processing stage of a pipeline. */
 pub struct VertexState<'a> {

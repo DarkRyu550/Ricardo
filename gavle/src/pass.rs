@@ -7,7 +7,7 @@ use crate::binding::UniformGroup;
 use crate::access::AccessLock;
 use crate::framebuffer::Framebuffer;
 use std::convert::TryFrom;
-use crate::Information;
+use crate::{Information, Color};
 
 pub struct RenderPass<'a> {
 	/** Shared graphics context. */
@@ -26,6 +26,8 @@ pub struct RenderPass<'a> {
 	pub(crate) draw_buffers_setup: bool,
 	/** Whether the stencil state has been set up. */
 	pub(crate) stencil_setup: bool,
+	/** Whether the blending state has been set up. */
+	pub(crate) blending_setup: bool,
 	/** Reference to the pipeline object used in this pass. */
 	pub(crate) pipeline: &'a RenderPipeline,
 	/** Reference to a vertex buffer, if any. */
@@ -38,6 +40,8 @@ pub struct RenderPass<'a> {
 	pub(crate) framebuffer: &'a Framebuffer,
 	/** Stencil reference value to be used during render operations. */
 	pub(crate) stencil_reference: u8,
+	/** Color blend constant value to be used during render operations. */
+	pub(crate) color_blend_constant: Color,
 }
 impl<'a> RenderPass<'a> {
 	/** Sets the vertex buffer to be used for this dispatch. */
@@ -118,6 +122,12 @@ impl<'a> RenderPass<'a> {
 		}
 	}
 
+	/** Sets the blend color as used by some of the blending modes. */
+	pub fn set_blend_color(&mut self, color: Color) {
+		self.color_blend_constant = color;
+		self.blending_setup = false;
+	}
+
 	/** Set the reference value for stencil operations. */
 	pub fn set_stencil_reference(&mut self, reference: u8) {
 		self.stencil_reference = reference;
@@ -156,6 +166,11 @@ impl<'a> RenderPass<'a> {
 		if !self.stencil_setup {
 			self.pipeline.stencil_setup(gl, self.stencil_reference);
 			self.stencil_setup = true;
+		}
+
+		if !self.blending_setup {
+			self.pipeline.blending_setup(gl, self.color_blend_constant);
+			self.blending_setup = true;
 		}
 	}
 
