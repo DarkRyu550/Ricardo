@@ -38,10 +38,10 @@ Ambas podem ser instaladas por meio do executavel obtido em https://rustup.rs,
 que toma conta de manuzear diversas insalacoes das ferramentas da linguagem para
 um dado usuario.
 
-Um dado exemplo eh compilado executado usando a seguinte forma de linha de co-
+Um dado exercicio eh compilado executado usando a seguinte forma de linha de co-
 mando:
 ```
-$ cargo run --release -p example-<numero>
+$ cargo run --release -p exercise-<numero>
 ```
 
 Onde `<numero>` eh um numero cardinal escrito por extenso, em ingles: "one",
