@@ -131,7 +131,7 @@ impl OwnedUniformBind {
 				let index = match gl.get_uniform_block_index(program.program, target) {
 					Some(location) => location,
 					None => {
-						debug!("tried to bind to inactive uniform block at \
+						trace!("tried to bind to inactive uniform block at \
 							\"{}\". data for this uniform will be missing",
 							target);
 						return
@@ -155,7 +155,7 @@ impl OwnedUniformBind {
 			OwnedUniformBind::Texture { texture, far, near } => {
 				/* Check whether this target is active in the program. */
 				if let None = program.uniforms.get(target) {
-					debug!("tried to bind to the inactive uniform \"{}\". data \
+					trace!("tried to bind to the inactive uniform \"{}\". data \
 						for this uniform will be missing", target);
 					return
 				}

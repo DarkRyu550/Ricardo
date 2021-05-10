@@ -49,5 +49,18 @@ Onde `<numero>` eh um numero cardinal escrito por extenso, em ingles: "one",
 
 # Exemplos Atualmente Implementados
 Os seguintes exercicios jah foram implementados:
-    - [x] Exemplo #1 (`example-one`): Programa que utiliza as primitivas 2D para
-      gerar um desenho abstrato.
+    - [x] Exercicio #1 (`exercise-one`): Programa que utiliza as primitivas 2D para
+          gerar um desenho abstrato.
+    - [x] Exercicio #2-A (`exercise-two-a`): Programa que desenha um triangulo e
+          aplica uma transformacao geometrica de escala uniforme.
+    - [x] Exercicio #2-B (`exercise-two-b`): Programa que desenha um retangulo
+          utilizando o modo de TriangleStrip e em seguida aplica uma rotacao
+          que pode ser controlada com as setas do teclado.
+    - [x] Exercicio #2-C (`exercise-two-c`): Programa que desenha um circulo
+          cujo centro pode ser translado para uma posicao controlada usando as
+          teclas WASD do teclado.
+    - [x] Exercicio #2-D (`exercise-two-d`): Programa que desenha um triangulo cuja
+          posicao segue a posicao do mouse e um circulo que funciona igual ao
+          implementado no exercicio #2-C.
+    - [x] Exercicio #2-E (`exercise-two-e`): Programa que desenha um modelo
+          de um disco que pode ser movimentado usando o mouse e arrastando.
