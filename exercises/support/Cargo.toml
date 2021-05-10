@@ -1,0 +1,14 @@
+[package]
+name = "support"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+gavle         = { path = "../../gavle" }
+bytemuck      = { version = "1", features = ["derive"] }
+serde         = { version = "1", features = ["derive"] }
+smallvec      = "1"
+tinyvec       = "1"
+thiserror     = "1"
+ordered-float = "2"
+obj-rs        = "0.6"

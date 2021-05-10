@@ -3,5 +3,12 @@ members = [
 	"gavle",
 	"gavle/example",
 	"environment",
+	"exercises/support",
 	"exercises/one",
+	"exercises/two/a",
+	"exercises/two/b",
+	"exercises/two/c",
+	"exercises/two/d",
+	"exercises/two/e",
+	"exercises/three",
 ]

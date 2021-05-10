@@ -25,7 +25,9 @@ de subpastas que tambem sao projetos, essas sao:
       o que evita comportamentos nao definidos por parte da API executando os
       comandos de renderizacao.
     - "exercises/": A pasta que contem os subprojetos de cada um dos exercicios,
-      nomeados pelo seu numero escrito por extenso em ingles.
+      nomeados pelo seu numero escrito por extenso em ingles. A pasta
+      "excercises/support" eh uma excessao a regra de nomes por conter codigo de
+      suporte compartilhado entre todos os exercicios.
 
 # Compilacao e Execucao
 Para compilar esse projeto, eh necessario que se possua tanto a versao mais re-

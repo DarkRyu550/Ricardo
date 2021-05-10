@@ -28,6 +28,8 @@ pub struct RenderPass<'a> {
 	pub(crate) stencil_setup: bool,
 	/** Whether the blending state has been set up. */
 	pub(crate) blending_setup: bool,
+	/** Whether the framebuffer state has been set loaded. */
+	pub(crate) framebuffer_loaded: bool,
 	/** Reference to the pipeline object used in this pass. */
 	pub(crate) pipeline: &'a RenderPipeline,
 	/** Reference to a vertex buffer, if any. */
@@ -139,8 +141,13 @@ impl<'a> RenderPass<'a> {
 	 */
 	unsafe fn ensure_setup(&mut self) {
 		let gl = self.context.as_ref();
-		if !self.general_setup {
+		if !self.framebuffer_loaded {
 			self.framebuffer.bind_and_load(gl);
+			self.framebuffer_loaded = true;
+		}
+
+		if !self.general_setup {
+			self.framebuffer.bind(gl);
 			self.pipeline.bind(gl);
 
 			let vertex = self.vertex.map(|vertex| vertex.as_raw_handle());

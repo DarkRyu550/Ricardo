@@ -93,8 +93,23 @@ pub struct Framebuffer {
 impl Framebuffer {
 	/** Bind this framebuffer for use in OpenGL.
 	 *
+	 * This function does not perform any load or clear operations. Assuming
+	 * that those have already been done. */
+	pub(crate) unsafe fn bind(&self, gl: &Context) {
+		match &self.variants {
+			FramebufferVariants::Default { .. } => {
+				gl.bind_framebuffer(glow::FRAMEBUFFER, None);
+			},
+			FramebufferVariants::Custom { inner } => {
+				gl.bind_framebuffer(glow::FRAMEBUFFER, Some(inner.framebuffer));
+			}
+		};
+	}
+
+	/** Bind this framebuffer for use in OpenGL.
+	 *
 	 * This function also performs any required clear operations in all of the
-	 * attachments of the framebuffer. */
+	 * attachments of the framebuffer, if needed. */
 	pub(crate) unsafe fn bind_and_load(&self, gl: &Context) {
 		let (color, depth, stencil) = match &self.variants {
 			FramebufferVariants::Default {

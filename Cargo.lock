@@ -494,6 +494,67 @@ dependencies = [
 ]
 
 [[package]]
+name = "exercise-three"
+version = "0.1.0"
+
+[[package]]
+name = "exercise-two-a"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "environment",
+ "gavle",
+ "support",
+ "winit",
+]
+
+[[package]]
+name = "exercise-two-b"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "environment",
+ "gavle",
+ "support",
+ "winit",
+]
+
+[[package]]
+name = "exercise-two-c"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "environment",
+ "gavle",
+ "support",
+ "winit",
+]
+
+[[package]]
+name = "exercise-two-d"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "environment",
+ "gavle",
+ "support",
+ "winit",
+]
+
+[[package]]
+name = "exercise-two-e"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "environment",
+ "gavle",
+ "image",
+ "obj-rs",
+ "support",
+ "winit",
+]
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1098,6 +1159,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "obj-rs"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf37dd242b0636bf442a539738f54330b0db9ad9758a89de154e9d3866a7847e"
+dependencies = [
+ "num-traits",
+ "serde",
+ "vec_map",
+]
+
+[[package]]
 name = "objc"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1111,6 +1183,15 @@ name = "once_cell"
 version = "1.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af8b08b04175473088b46763e51ee54da5f9a164bc162f615b91bc179dbf15a3"
+
+[[package]]
+name = "ordered-float"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b50b8919aecb97e5ee9aceef27e24f39c46b11831130f4a6b7b091ec5de0de12"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "osmesa-sys"
@@ -1308,6 +1389,20 @@ name = "serde"
 version = "1.0.125"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "558dc50e1a5a5fa7112ca2ce4effcb321b0300c0d4ccf0776a9f60cd89031171"
+dependencies = [
+ "serde_derive",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.125"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b093b7a2bb58203b5da3056c05b4ec1fed827dcfdb37347a8841695263b3d06d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "shared_library"
@@ -1361,6 +1456,20 @@ name = "strsim"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6446ced80d6c486436db5c078dde11a9f73d42b57fb273121e160b84f63d894c"
+
+[[package]]
+name = "support"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "gavle",
+ "obj-rs",
+ "ordered-float",
+ "serde",
+ "smallvec",
+ "thiserror",
+ "tinyvec",
+]
 
 [[package]]
 name = "syn"
@@ -1439,6 +1548,12 @@ name = "unicode-xid"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7fe0bb3479651439c9112f72b6c505038574c9fbb575ed1bf3b797fa39dd564"
+
+[[package]]
+name = "vec_map"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
 
 [[package]]
 name = "version_check"

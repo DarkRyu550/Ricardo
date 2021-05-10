@@ -372,7 +372,7 @@ impl RenderPipeline {
 		gl.bind_buffer(glow::ARRAY_BUFFER, vertex_buffer);
 		for attribute in &self.inner.vertex_layout.attributes {
 			if let None = self.inner.program.attributes.get(attribute.binding.as_ref()) {
-				debug!("tried to bind to the inactive attribute \"{}\". data \
+				trace!("tried to bind to the inactive attribute \"{}\". data \
 					for this attribute will be missing",
 					attribute.binding);
 

@@ -25,6 +25,7 @@ pub use binding::*;
 pub use texture::*;
 pub use framebuffer::*;
 pub use info::*;
+use smallvec::SmallVec;
 
 /** This macro instances shader creation functions from a common base. */
 macro_rules! instance_shader_creation_functions {
@@ -300,7 +301,7 @@ impl Device {
 		};
 
 		let gl = self.context.as_ref();
-		let framebuffer = unsafe {
+		let (framebuffer, color_attachments, depth_stencil) = unsafe {
 			let framebuffer = gl.create_framebuffer()
 				.map_err(|what| FramebufferError::CreationError { what })?;
 
@@ -335,6 +336,12 @@ impl Device {
 				}
 			};
 
+			/* Attach the textures to the FBO and copy their handles so that we
+			 * may keep the textures for as long as our own framebuffer lives. */
+			let mut color_attachments = SmallVec::<[Texture; 32]>::default();
+			let mut draw_buffers = SmallVec::<[u32; 128]>::default();
+			let mut depth_stencil = None;
+
 			let attachments = (0u32..).zip(descriptor.color_attachments);
 			for (i, texture) in attachments {
 				if i >= self.information
@@ -347,6 +354,11 @@ impl Device {
 
 				let attachment = glow::COLOR_ATTACHMENT0 + i;
 				bind_texture(texture.attachment, attachment);
+
+				color_attachments.push(Texture {
+					inner: texture.attachment.inner.clone()
+				});
+				draw_buffers.push(attachment);
 			}
 
 			let attachments = &descriptor.depth_stencil_attachment;
@@ -358,8 +370,12 @@ impl Device {
 						{:?}", texture.attachment.format())
 				}
 				bind_texture(texture.attachment, glow::DEPTH_STENCIL_ATTACHMENT);
+				depth_stencil = Some(Texture {
+					inner: texture.attachment.inner.clone(),
+				});
 			}
 
+			/* Check whether the framebuffer we created is valid. */
 			match gl.check_framebuffer_status(glow::FRAMEBUFFER) {
 				glow::FRAMEBUFFER_COMPLETE => { /* Okay. */ },
 				glow::FRAMEBUFFER_INCOMPLETE_ATTACHMENT =>
@@ -369,9 +385,15 @@ impl Device {
 				other =>
 					panic!("framebuffer creation error: 0x{:08x}", other)
 			}
-			gl.bind_framebuffer(glow::FRAMEBUFFER, None);
 
-			framebuffer
+			/* Tell OpenGL to enable all of the targets in the framebuffer for
+			 * drawing by the fragment shader. If we don't do this, the shader
+			 * will only ever output to the first color attachment. */
+			gl.draw_buffers(&draw_buffers[..]);
+
+
+			gl.bind_framebuffer(glow::FRAMEBUFFER, None);
+			(framebuffer, color_attachments, depth_stencil)
 		};
 
 		Ok(Framebuffer {
@@ -379,8 +401,8 @@ impl Device {
 				inner: Rc::new(InnerFramebuffer {
 					context: self.context.clone(),
 					access: Default::default(),
-					color_attachments: Default::default(),
-					depth_stencil: Default::default(),
+					color_attachments,
+					depth_stencil,
 					framebuffer,
 					color_load_op: descriptor.color_attachments.get(0)
 						.map(|attachment| attachment.load_op)
@@ -422,7 +444,8 @@ impl Device {
 				green: 0.0,
 				blue: 0.0,
 				alpha: 1.0
-			}
+			},
+			framebuffer_loaded: false
 		}
 	}
 
@@ -578,7 +601,8 @@ impl Device {
 						0,
 						format,
 						kind,
-						data)
+						data);
+					gl.generate_mipmap(glow::TEXTURE_1D);
 				},
 				TextureExtent::D2 { width, height } => {
 					let width = check_i32(width)?;
@@ -595,15 +619,16 @@ impl Device {
 						format,
 						kind,
 						data);
+					gl.generate_mipmap(glow::TEXTURE_2D);
 				},
 				TextureExtent::D2Array { width, height, layers } => {
 					let width = check_i32(width)?;
 					let height = check_i32(height)?;
 					let layers = check_i32(layers)?;
 
-					gl.bind_texture(glow::TEXTURE_3D, Some(texture));
+					gl.bind_texture(glow::TEXTURE_2D_ARRAY, Some(texture));
 					gl.tex_image_3d(
-						glow::TEXTURE_3D,
+						glow::TEXTURE_2D_ARRAY,
 						0,
 						i32::try_from(internal_format).unwrap(),
 						width,
@@ -613,6 +638,7 @@ impl Device {
 						format,
 						kind,
 						data);
+					gl.generate_mipmap(glow::TEXTURE_2D_ARRAY);
 				},
 				TextureExtent::D3 { width, height, depth } => {
 					let width = check_i32(width)?;
@@ -631,6 +657,7 @@ impl Device {
 						format,
 						kind,
 						data);
+					gl.generate_mipmap(glow::TEXTURE_3D);
 				}
 			}
 
