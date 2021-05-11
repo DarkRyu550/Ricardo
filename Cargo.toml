@@ -10,5 +10,6 @@ members = [
 	"exercises/two/c",
 	"exercises/two/d",
 	"exercises/two/e",
-	"exercises/three",
+	"exercises/three/a",
+	"exercises/three/b",
 ]

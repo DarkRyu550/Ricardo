@@ -1,0 +1,13 @@
+[package]
+name = "exercise-three-a"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+gavle       = { path = "../../../gavle" }
+support     = { path = "../../support" }
+environment = { path = "../../../environment" }
+bytemuck    = { version = "1", features = ["derive"] }
+winit       = "0.24"
+obj-rs      = "0.6"
+image       = "0.23"

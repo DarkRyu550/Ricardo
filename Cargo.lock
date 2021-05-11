@@ -494,8 +494,30 @@ dependencies = [
 ]
 
 [[package]]
-name = "exercise-three"
+name = "exercise-three-a"
 version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "environment",
+ "gavle",
+ "image",
+ "obj-rs",
+ "support",
+ "winit",
+]
+
+[[package]]
+name = "exercise-three-b"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "environment",
+ "gavle",
+ "image",
+ "obj-rs",
+ "support",
+ "winit",
+]
 
 [[package]]
 name = "exercise-two-a"
