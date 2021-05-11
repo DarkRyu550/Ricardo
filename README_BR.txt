@@ -47,7 +47,7 @@ $ cargo run --release -p exercise-<numero>
 Onde `<numero>` eh um numero cardinal escrito por extenso, em ingles: "one",
 "two", "three", etc.
 
-# Exemplos Atualmente Implementados
+# Exercicios Atualmente Implementados
 Os seguintes exercicios jah foram implementados:
     - [x] Exercicio #1 (`exercise-one`): Programa que utiliza as primitivas 2D para
           gerar um desenho abstrato.
@@ -64,3 +64,7 @@ Os seguintes exercicios jah foram implementados:
           implementado no exercicio #2-C.
     - [x] Exercicio #2-E (`exercise-two-e`): Programa que desenha um modelo
           de um disco que pode ser movimentado usando o mouse e arrastando.
+    - [x] Exercicio #3-A (`exercise-three-a`): Programa que desenha um modelo
+          de uma esfera que pode ser movimentada usando o mouse e arrastando.
+    - [x] Exercicio #2-E (`exercise-three-b`): Programa que desenha um modelo
+          de um cilindro que pode ser movimentado usando o mouse e arrastando.
