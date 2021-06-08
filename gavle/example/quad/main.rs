@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use std::convert::TryFrom;
 use std::time::Duration;
 use winit::event::{Event, WindowEvent};
+use std::num::NonZeroU8;
 
 /** Vertex type. */
 #[repr(C)]
@@ -105,7 +106,7 @@ fn run<F, G, W>(
 		&TextureDescriptor {
 			extent: TextureExtent::D2 { width: texture_width, height: texture_height },
 			format: TextureFormat::Rgba8Unorm,
-			mip: Mipmap::None
+			mip: Mipmap::Automatic { filter: FilterType::Lanczos3 }
 		},
 		&texture)
 		.unwrap();
@@ -143,7 +144,8 @@ fn run<F, G, W>(
 					kind: UniformBind::Texture {
 						texture: &texture,
 						far: TextureFilter::Linear,
-						near: TextureFilter::Linear
+						near: TextureFilter::Linear,
+						anisotropy_clamp: Some(NonZeroU8::new(16).unwrap()),
 					}
 				},
 				UniformGroupEntry {

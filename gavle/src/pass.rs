@@ -153,7 +153,10 @@ impl<'a> RenderPass<'a> {
 			let vertex = self.vertex.map(|vertex| vertex.as_raw_handle());
 			let index = self.index.map(|index| index.as_raw_handle());
 			if let Some(binder) = &self.bind {
-				binder.bind(gl, &self.pipeline.inner.program)
+				binder.bind(
+					gl,
+					&self.information.features,
+					&self.pipeline.inner.program)
 			}
 
 			gl.bind_buffer(glow::ARRAY_BUFFER, vertex);

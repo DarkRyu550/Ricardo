@@ -22,3 +22,9 @@ tinyvec   = "1"
 arrayvec  = "0.6"
 bitflags  = "1"
 generational-arena = "0.2"
+
+image     = { version = "0.23", optional = true }
+bytemuck  = { version = "1", optional = true }
+
+[features]
+mipmap-generation = ["image", "bytemuck"]

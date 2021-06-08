@@ -55,7 +55,7 @@ impl Matrix4 {
 		])
 	}
 
-	/** Creates a new transformation with which  */
+	/** Creates a new transformation which applies a depth-based perspective projection. */
 	pub fn rectilinear_projection(fovy: f32, aspect: f32, n: f32, f: f32) -> Self {
 		let z = -f / (n - f);
 		let c = f * n / (n - f);
@@ -67,6 +67,23 @@ impl Matrix4 {
 			0.0,   f,  0.0, 0.0,
 			0.0, 0.0,    z,   c,
 			0.0, 0.0,  1.0, 0.0,
+		])
+	}
+
+	/** Creates a new transformation which applies an orthographic projection. */
+	pub fn orthographic_projection(
+		left: f32, right: f32,
+		top:  f32, bottom: f32,
+		near: f32, far: f32) -> Self {
+
+		let w = right - left;
+		let h = top - bottom;
+		let d = far - near;
+		Self([
+			2.0 / w, 0.0,     0.0,     -w,
+			0.0,     2.0 / h, 0.0,     -h,
+			0.0,     0.0,     2.0 / d, -d,
+			0.0,     0.0,     0.0,     1.0
 		])
 	}
 

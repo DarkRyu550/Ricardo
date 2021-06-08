@@ -5,7 +5,7 @@ edition = "2018"
 
 [dependencies]
 gavle       = { path = "../../../gavle" }
-support     = { path = "../../support" }
+support     = { path = "../../../support" }
 environment = { path = "../../../environment" }
 bytemuck    = { version = "1", features = ["derive"] }
 winit       = "0.24"

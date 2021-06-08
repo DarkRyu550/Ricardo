@@ -7,6 +7,7 @@ use winit::dpi::PhysicalSize;
 use support::{Vertex, Matrix4};
 use std::convert::TryFrom;
 use bytemuck::Zeroable;
+use std::num::NonZeroU8;
 
 /** Graphical assets used by this application. */
 mod assets;
@@ -299,7 +300,8 @@ impl ApplicationRenderStateVisitor {
 						kind: UniformBind::Texture {
 							texture: &albedo,
 							far: TextureFilter::Nearest,
-							near: TextureFilter::Nearest
+							near: TextureFilter::Nearest,
+							anisotropy_clamp: Some(NonZeroU8::new(16).unwrap()),
 						}
 					},
 					UniformGroupEntry {
@@ -307,7 +309,8 @@ impl ApplicationRenderStateVisitor {
 						kind: UniformBind::Texture {
 							texture: &normal,
 							far: TextureFilter::Linear,
-							near: TextureFilter::Linear
+							near: TextureFilter::Linear,
+							anisotropy_clamp: Some(NonZeroU8::new(16).unwrap()),
 						}
 					},
 					UniformGroupEntry {
@@ -315,7 +318,8 @@ impl ApplicationRenderStateVisitor {
 						kind: UniformBind::Texture {
 							texture: &roughness,
 							far: TextureFilter::Linear,
-							near: TextureFilter::Linear
+							near: TextureFilter::Linear,
+							anisotropy_clamp: Some(NonZeroU8::new(16).unwrap()),
 						}
 					},
 					UniformGroupEntry {
@@ -323,7 +327,8 @@ impl ApplicationRenderStateVisitor {
 						kind: UniformBind::Texture {
 							texture: &metallic,
 							far: TextureFilter::Linear,
-							near: TextureFilter::Linear
+							near: TextureFilter::Linear,
+							anisotropy_clamp: Some(NonZeroU8::new(16).unwrap()),
 						}
 					},
 				]

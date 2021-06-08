@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 log      = "0.4"
-gavle    = { path = "../" }
+gavle    = { path = "../", features = ["mipmap-generation"] }
 glow     = "0.8"
 bytemuck = { version = "1", features = ["derive"] }
 image    = "0.23"

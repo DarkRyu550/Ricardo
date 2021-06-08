@@ -97,16 +97,16 @@ pub enum TextureFilter {
 }
 impl TextureFilter {
 	/** Get the OpenGL enum value for the current variant. */
-	pub(crate) fn as_opengl(&self) -> u32 {
+	pub(crate) fn as_opengl(&self, min: bool) -> u32 {
 		match self {
-			Self::Nearest => glow::NEAREST,
-			Self::Linear => glow::LINEAR,
+			Self::Nearest => if min { glow::NEAREST_MIPMAP_NEAREST } else { glow::NEAREST },
+			Self::Linear => if min { glow::LINEAR_MIPMAP_LINEAR } else { glow::LINEAR },
 		}
 	}
 }
 
 /** Descriptor specifying all of the parameters for a newly created texture. */
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Copy, Clone)]
 pub struct TextureDescriptor {
 	/** Extent and dimensional layout of this texture. */
 	pub extent: TextureExtent,
@@ -117,7 +117,7 @@ pub struct TextureDescriptor {
 }
 
 /** Mipmap behavior of a texture. */
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Copy, Clone)]
 pub enum Mipmap {
 	/** No mips will be generated or available for this texture. */
 	None,
@@ -128,12 +128,21 @@ pub enum Mipmap {
 		levels: NonZeroU32,
 	},
 	/** All of the mip levels that can be generated for this texture will be
-	 * generated automatically by OpenGL.
+	 * generated automatically by Gavle.
 	 *
-	 * Please don't use this.
-	 */
-	Automatic,
+	 * Often, what you'll want is to pre-bake the mipmaps before runtime in
+	 * order to save on initialization time, seeing as mipmap generation is very
+	 * expensive. */
+	#[cfg(feature = "mipmap-generation")]
+	Automatic {
+		/** Filter to be used to scale down the image during generation of the
+		 * mip levels. T */
+		filter: FilterType
+	},
 }
+
+#[cfg(feature = "mipmap-generation")]
+pub use image::imageops::FilterType;
 
 /** Extents of a given texture in their given dimensional layout. */
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]

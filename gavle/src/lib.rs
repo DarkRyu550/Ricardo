@@ -4,7 +4,7 @@ extern crate log;
 use glow::{HasContext, Context};
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use crate::texture::InnerTexture;
 
 mod buffer;
@@ -25,6 +25,7 @@ pub use binding::*;
 pub use texture::*;
 pub use framebuffer::*;
 pub use info::*;
+
 use smallvec::SmallVec;
 
 /** This macro instances shader creation functions from a common base. */
@@ -190,13 +191,46 @@ impl Device {
 		for entry in description.entries {
 			let bind = entry.binding.to_string();
 			let kind = match entry.kind {
-				UniformBind::Texture { texture, far, near } => {
+				UniformBind::Texture {
+					texture,
+					far,
+					near,
+					anisotropy_clamp } => {
+
 					textures += 1;
+
+					/* Check whether the anisotropy parameters are valid. */
+					match anisotropy_clamp {
+						Some(_) if !self.information.features.sampler_anisotropy =>
+							panic!("Tried to create a uniform bind group in \
+								which a texture has anisotropic filtering, \
+								even though anisotropic filtering is not \
+								supported by the current context."),
+						Some(anisotropy)
+							if f32::from(anisotropy.get()) >
+								self.information
+									.limits
+									.max_sampler_anisotropy
+									.unwrap() =>
+							panic!("Tried to create a uniform bind group in \
+								which a texture has an anisotropy clamp factor \
+								({}) higher than the maximum factor allowed by \
+								the current context ({}).",
+								anisotropy.get(),
+								self.information
+									.limits
+									.max_sampler_anisotropy
+									.unwrap()),
+						_ =>
+							/* All good. */
+							{}
+					}
 
 					OwnedUniformBind::Texture {
 						texture: Texture { inner: texture.inner.clone() },
 						far,
-						near
+						near,
+						anisotropy_clamp
 					}
 				},
 				UniformBind::Buffer { buffer } => {
@@ -459,13 +493,167 @@ impl Device {
 
 		let _atom = self.pipeline_lock.borrow_mut();
 
+		#[cfg(feature = "mipmap-generation")]
+		let mut mip_buffer: Option<Vec<u8>> = None;
+
+		/* Determine the number of bytes per pixel. */
+		let bytes_per_pixel = match descriptor.format {
+			TextureFormat::Rgba8Unorm => 4 * 1,
+			TextureFormat::Rgba32Float => 4 * 4,
+			TextureFormat::Depth24Stencil8 => 4,
+		};
+
 		/* Party rockers in the house tonight. */
-		match descriptor.mip {
-			Mipmap::None => {},
-			Mipmap::Manual { .. } =>
-				panic!("Mipmaps aren't supported yet sorry bro."),
-			Mipmap::Automatic =>
-				panic!("Mipmaps aren't supported yet sorry bro."),
+		let (mips, data) = match descriptor.mip {
+			Mipmap::None => (1, data),
+			Mipmap::Manual { levels } =>
+				(levels.get(), data),
+			#[cfg(feature = "mipmap-generation")]
+			Mipmap::Automatic { filter } => {
+				/* Generate the mipmaps and store them in new buffer. */
+				let (axis, layers) = match descriptor.extent {
+					TextureExtent::D2 { width, height } =>
+						(u32::min(width, height), 1),
+					TextureExtent::D2Array { width, height, layers } =>
+						(u32::min(width, height), layers),
+					_ => panic!("Mipmap generation is only supported for 2D and \
+						2D array textures. For textures of type {:?} mip maps, \
+						if supported, have to be specified manually.",
+						descriptor.extent)
+				};
+
+				let mips_per_layer = f64::from(axis)
+					.log2()
+					.floor() as u32;
+
+				let data = match data {
+					Some(data) => data,
+					None => panic!("Mipmap generation is only supported for \
+						textures which are to be initialized with data.")
+				};
+				if let TextureFormat::Depth24Stencil8 = descriptor.format {
+					panic!("Mipmap generation is only supported for color \
+						textures")
+				}
+
+				let (width, height, bytes_per_pixel, stride) = {
+					let pixels_per_page = match descriptor.extent {
+						TextureExtent::D2Array { width, height, .. } =>
+							(width, height, width * height),
+						TextureExtent::D2 { width, height } =>
+							(width, height, width * height),
+						_ => unreachable!()
+					};
+
+					(
+						pixels_per_page.0,
+						pixels_per_page.1,
+						bytes_per_pixel,
+						pixels_per_page.2 * bytes_per_pixel
+					)
+				};
+
+				/* Generate the target buffer for the mips. */
+				let mut buffer = Vec::with_capacity(
+					(width * height * bytes_per_pixel * 2) as usize);
+				match descriptor.format {
+					TextureFormat::Rgba8Unorm =>
+						/* Since the length of the data type is the same as the
+						 * backing pixel storage, we can just process it
+						 * directly. */
+						for layer in 0..layers {
+							let offset = layer * stride;
+							let image = image::ImageBuffer
+								::<image::Rgba<u8>, &[u8]>
+								::from_raw(
+									width,
+									height,
+									&data[offset as usize..(offset + stride) as usize])
+									.expect("This must have already fit by this point");
+
+							buffer.extend_from_slice(image.as_raw());
+							for mip in 1..mips_per_layer {
+								let width = u32::max(width >> mip, 1);
+								let height = u32::max(height >> mip, 1);
+								let mip = image::imageops::resize(
+									&image,
+									width,
+									height,
+									filter);
+								buffer.extend_from_slice(mip.as_raw());
+							}
+						},
+					TextureFormat::Rgba32Float => {
+						/* We have to process it all as f32's, which means we
+						 * may have to convert back and forth between bytes and
+						 * floats. */
+
+						let mut back = None;
+						let data = bytemuck
+							::try_cast_slice
+							::<u8, f32>(data)
+							.unwrap_or_else(|_| {
+								let temp = data
+									.chunks_exact(std::mem::size_of::<f32>())
+									.map(|chunk| {
+										let bytes = chunk.try_into().unwrap();
+										f32::from_ne_bytes(bytes)
+									})
+									.collect::<Vec<_>>();
+								&*back.insert(temp)
+							});
+
+						let capacity = buffer.capacity() / std::mem::size_of::<f32>();
+						let mut local_buffer = Vec::with_capacity(capacity);
+
+						for layer in 0..layers {
+							let offset = layer * stride;
+							let image = image::ImageBuffer
+								::<image::Rgba<f32>, &[f32]>
+								::from_raw(
+									width,
+									height,
+									&data[offset as usize..(offset + stride) as usize])
+									.expect("This must have already fit by this point");
+
+							local_buffer.extend_from_slice(image.as_raw());
+							for mip in 1..mips_per_layer {
+								let width = u32::max(width >> mip, 1);
+								let height = u32::max(height >> mip, 1);
+								let mip = image::imageops::resize(
+									&image,
+									width,
+									height,
+									filter);
+								local_buffer.extend_from_slice(mip.as_raw());
+							}
+						}
+
+						/* Copy from the local buffer to the target buffer. */
+						local_buffer.into_iter()
+							.map(|value| f32::to_ne_bytes(value))
+							.for_each(|bytes| {
+								let iter = std::array::IntoIter::new(bytes);
+								buffer.extend(iter)
+							})
+					},
+					_ => unreachable!()
+				}
+
+				(
+					mips_per_layer,
+					Some(&mip_buffer.insert(buffer)[..])
+				)
+			}
+		};
+
+		match descriptor.extent {
+			TextureExtent::D2 { .. } => { },
+			_ if mips > 1 => {
+				warn!("Mipmaps for textures other than 2D textures are \
+					currently not supported");
+			},
+			_ => {}
 		}
 
 		let gl = self.context.as_ref();
@@ -557,10 +745,6 @@ impl Device {
 					TextureExtent::D3 { width, height, depth } =>
 						(width, height, depth)
 				};
-				let mips = match descriptor.mip {
-					Mipmap::Automatic | Mipmap::None => 1,
-					Mipmap::Manual { levels } => levels.get()
-				};
 
 				let bytes_per_pixel = match descriptor.format {
 					TextureFormat::Rgba32Float => 4 * 4,
@@ -568,10 +752,15 @@ impl Device {
 					TextureFormat::Depth24Stencil8 => 1 * 4
 				};
 
-				let bytes_per_row = bytes_per_pixel * columns;
-				let bytes_per_page = bytes_per_row * rows;
-				let bytes_per_bundle = bytes_per_page * mips;
-				let len = bytes_per_bundle * pages;
+				let bytes_per_page: u32 = (0..mips).into_iter()
+					.map(|mip| {
+						let width = u32::max(columns >> mip, 1);
+						let height = u32::max(rows >> mip, 1);
+
+						width * height * bytes_per_pixel
+					})
+					.sum();
+				let len = bytes_per_page * pages;
 
 				if data.len() < usize::try_from(len).unwrap() {
 					panic!("length of the intialization buffer ({}) is less \
@@ -602,24 +791,52 @@ impl Device {
 						format,
 						kind,
 						data);
-					gl.generate_mipmap(glow::TEXTURE_1D);
+
+					gl.tex_parameter_i32(
+						glow::TEXTURE_2D,
+						glow::TEXTURE_MAX_LEVEL,
+						0);
+					gl.tex_parameter_i32(
+						glow::TEXTURE_2D,
+						glow::TEXTURE_BASE_LEVEL,
+						0);
 				},
 				TextureExtent::D2 { width, height } => {
 					let width = check_i32(width)?;
 					let height = check_i32(height)?;
+					let mips = check_i32(mips)?;
 
 					gl.bind_texture(glow::TEXTURE_2D, Some(texture));
-					gl.tex_image_2d(
+
+					let mut offset = 0i32;
+					for i in 0..mips {
+						let width = i32::max(width >> i, 1);
+						let height = i32::max(height >> i, 1);
+						let length = width * height * 4;
+
+						let next_offset = offset.saturating_add(length);
+						gl.tex_image_2d(
+							glow::TEXTURE_2D,
+							i,
+							i32::try_from(internal_format).unwrap(),
+							width,
+							height,
+							0,
+							format,
+							kind,
+							data.map(|data| &data[offset as usize..next_offset as usize]));
+
+						offset = next_offset;
+					}
+
+					gl.tex_parameter_i32(
 						glow::TEXTURE_2D,
-						0,
-						i32::try_from(internal_format).unwrap(),
-						width,
-						height,
-						0,
-						format,
-						kind,
-						data);
-					gl.generate_mipmap(glow::TEXTURE_2D);
+						glow::TEXTURE_MAX_LEVEL,
+						(mips - 1).max(0));
+					gl.tex_parameter_i32(
+						glow::TEXTURE_2D,
+						glow::TEXTURE_BASE_LEVEL,
+						0);
 				},
 				TextureExtent::D2Array { width, height, layers } => {
 					let width = check_i32(width)?;
@@ -638,7 +855,15 @@ impl Device {
 						format,
 						kind,
 						data);
-					gl.generate_mipmap(glow::TEXTURE_2D_ARRAY);
+
+					gl.tex_parameter_i32(
+						glow::TEXTURE_2D,
+						glow::TEXTURE_MAX_LEVEL,
+						0);
+					gl.tex_parameter_i32(
+						glow::TEXTURE_2D,
+						glow::TEXTURE_BASE_LEVEL,
+						0);
 				},
 				TextureExtent::D3 { width, height, depth } => {
 					let width = check_i32(width)?;
@@ -657,7 +882,16 @@ impl Device {
 						format,
 						kind,
 						data);
-					gl.generate_mipmap(glow::TEXTURE_3D);
+
+
+					gl.tex_parameter_i32(
+						glow::TEXTURE_2D,
+						glow::TEXTURE_MAX_LEVEL,
+						0);
+					gl.tex_parameter_i32(
+						glow::TEXTURE_2D,
+						glow::TEXTURE_BASE_LEVEL,
+						0);
 				}
 			}
 

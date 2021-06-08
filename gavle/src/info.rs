@@ -1,6 +1,8 @@
 use glow::{Context, HasContext};
 use std::cmp::Ordering;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
+use std::borrow::Cow;
+use std::collections::HashSet;
 
 /** Queries for a parameter with an `i32` result, checking whether it is
  * supported and, if it is not, returns `None`. */
@@ -21,7 +23,7 @@ unsafe fn checked_get_parameter_i32(
 }
 
 /** Information on a context. */
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Information {
 	/** Version and profile of the current context. */
 	pub version: Version,
@@ -29,6 +31,8 @@ pub struct Information {
 	pub capabilities: Capabilities,
 	/** Limits of this context. */
 	pub limits: Limits,
+	/** Features of this context. */
+	pub features: Features
 }
 impl Information {
 	/** Minimum supported version of the OpenGL Core specification. */
@@ -88,17 +92,127 @@ impl Information {
 			})
 		}
 
+		/* Enumerate all of the available extensions. */
+		let mut extensions = HashSet::new();
+		let _ = unsafe { Extension::enumerate(gl, &mut extensions) }?;
+
+		debug!("Discovered {} extensions: ", extensions.len());
+		for extension in &extensions {
+			debug!("    - {}", extension)
+		}
+
 		/* Gather capability information. */
 		let capabilities = Capabilities {
-			buffer_mapping: version.profile != Profile::Web
+			buffer_mapping: version.profile != Profile::Web,
 		};
 		let limits = Limits::collect(context)?;
+		let features = Features {
+			sampler_anisotropy:
+				extensions.contains(&Extension::EXT_TEXTURE_FILTER_ANISOTROPIC),
+		};
+
+		/* Check whether the limits are available for all of the available
+		 * optional features. */
+		if features.sampler_anisotropy && limits.max_sampler_anisotropy.is_none() {
+			return Err(UnsupportedContext::MissingMaxSamplerAnisotropy)
+		}
 
 		Ok(Self {
 			version,
 			capabilities,
-			limits
+			limits,
+			features
 		})
+	}
+}
+
+/** Named extension. */
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct Extension(Cow<'static, str>);
+impl Extension {
+	/** Support for anisotropic filtering in texture samplers.
+	 *
+	 * Registry entry:
+	 * https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_filter_anisotropic.txt.
+	 */
+	pub const EXT_TEXTURE_FILTER_ANISOTROPIC: Self =
+		Self(Cow::Borrowed("GL_EXT_texture_filter_anisotropic"));
+}
+impl Extension {
+	/** Enumerate all of the available extensions using the given context handle. */
+	unsafe fn enumerate(
+		gl: &glow::Context,
+		target: &mut impl Extend<Extension>) -> Result<usize, UnsupportedContext> {
+
+		let extension_count = gl.get_parameter_i32(glow::NUM_EXTENSIONS);
+		let num_supported = match gl.get_error() {
+			glow::INVALID_ENUM => false,
+			glow::NO_ERROR => true,
+			glow::INVALID_VALUE =>
+				panic!("glGetv(0x{:08x}) is out of range",
+					glow::NUM_EXTENSIONS),
+			what =>
+				panic!("glGet(0x{:08x}) returned error code 0x{:08x}",
+					glow::NUM_EXTENSIONS,
+					what)
+		};
+
+		let mut count = 0usize;
+		if num_supported {
+			for index in 0..extension_count {
+				let extension = gl.get_parameter_indexed_string(
+					glow::EXTENSIONS,
+					index.try_into().unwrap());
+				match gl.get_error() {
+					glow::INVALID_ENUM =>
+						return Err(UnsupportedContext::ExtensionEnumerationFailed),
+					glow::NO_ERROR => {},
+					glow::INVALID_VALUE =>
+						panic!("glGetv(0x{:08x}, index: {}) is out of range",
+							glow::NUM_EXTENSIONS,
+							index),
+					what =>
+						panic!("glGet(0x{:08x}) returned error code 0x{:08x}",
+							glow::NUM_EXTENSIONS,
+							what)
+				}
+
+				let extension = Self(Cow::Owned(extension));
+				target.extend(std::iter::once(extension));
+
+				count += 1;
+			}
+		} else {
+			warn!("Probing the extension count with GL_NUM_EXTENSIONS is not \
+				supported. Falling back to pulling the combined extension \
+				string using glGetString(GL_EXTENSIONS)");
+			let combined = gl.get_parameter_string(glow::EXTENSIONS);
+			match gl.get_error() {
+				glow::INVALID_ENUM =>
+					return Err(UnsupportedContext::ExtensionEnumerationFailed),
+				glow::NO_ERROR => {},
+				glow::INVALID_VALUE =>
+					panic!("glGetv(0x{:08x}) is out of range",
+						glow::NUM_EXTENSIONS),
+				what =>
+					panic!("glGet(0x{:08x}) returned error code 0x{:08x}",
+						glow::NUM_EXTENSIONS,
+						what)
+			}
+
+			let iterator = combined.split_ascii_whitespace()
+				.map(|slice| slice.to_string())
+				.map(|string| Self(Cow::Owned(string)))
+				.inspect(|_| count += 1);
+			target.extend(iterator);
+		}
+
+		Ok(count)
+	}
+}
+impl std::fmt::Display for Extension {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "{}", &self.0)
 	}
 }
 
@@ -113,8 +227,20 @@ pub struct Capabilities {
 	pub buffer_mapping: bool,
 }
 
-/** Limits on the amount of elements a given context supports. */
+/** Features of a given context.
+ *
+ * Unlike with the capabilities, features are limiting, and using features which
+ * are not supported on the target context is considered an error. Therefore, it
+ * is important for users to understand these features and limitations before
+ * enabling something. */
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct Features {
+	/** Whether anisotropic filtering is supported by the context. */
+	pub sampler_anisotropy: bool,
+}
+
+/** Limits on the amount of elements a given context supports. */
+#[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
 pub struct Limits {
 	/** Maximum number of texture units available to the user for a given draw
 	 * command. This is the maximum number of texture attachments a bind group
@@ -147,6 +273,8 @@ pub struct Limits {
 	pub max_viewport_width: Option<u32>,
 	/** The maximum height of the viewport at any given time. */
 	pub max_viewport_height: Option<u32>,
+	/** The maximum value of allowed for the anisotropy clamp. */
+	pub max_sampler_anisotropy: Option<f32>,
 }
 impl Limits {
 	fn collect(gl: &Context) -> Result<Self, UnsupportedContext> {
@@ -216,6 +344,21 @@ impl Limits {
 					parameter: param
 				})
 		};
+		let try_ensure_f32 = |param: u32| {
+			let value = unsafe {
+				let val = gl.get_parameter_f32(param);
+				match gl.get_error() {
+					glow::INVALID_ENUM => return Ok(None),
+					glow::NO_ERROR => {},
+					what =>
+						panic!("glGet(0x{:08x}) returned error code 0x{:08x}",
+							param,
+							what)
+				}
+				val
+			};
+			Ok(Some(value))
+		};
 
 		Ok(Self {
 			/* Texture limits block. */
@@ -234,6 +377,7 @@ impl Limits {
 			max_framebuffer_attachment_height: try_ensure_u32(glow::MAX_FRAMEBUFFER_HEIGHT)?,
 			max_viewport_width: try_ensure_u32_indexed(glow::MAX_VIEWPORT_DIMS, 0)?,
 			max_viewport_height: try_ensure_u32_indexed(glow::MAX_VIEWPORT_DIMS, 1)?,
+			max_sampler_anisotropy: try_ensure_f32(glow::MAX_TEXTURE_MAX_ANISOTROPY_EXT)?,
 		})
 	}
 }
@@ -435,7 +579,12 @@ pub enum UnsupportedContext {
 		profile: Profile,
 		/** The exact number of the unsupported release. */
 		release: (u32, u32)
-	}
+	},
+	#[error("extension enumeration is not supported")]
+	ExtensionEnumerationFailed,
+	#[error("sampler anisotropy is available, however, the implementation does \
+		not provide us with a maximum sampler anisotropy")]
+	MissingMaxSamplerAnisotropy,
 }
 
 #[cfg(test)]

@@ -619,8 +619,10 @@ version = "0.1.0"
 dependencies = [
  "arrayvec",
  "bitflags",
+ "bytemuck",
  "generational-arena",
  "glow",
+ "image",
  "log",
  "smallvec",
  "thiserror",
@@ -1299,6 +1301,10 @@ checksum = "a152013215dca273577e18d2bf00fa862b89b24169fb78c4c95aeb07992c9cec"
 dependencies = [
  "unicode-xid",
 ]
+
+[[package]]
+name = "projects-one"
+version = "0.1.0"
 
 [[package]]
 name = "quote"

@@ -5,7 +5,8 @@ use crate::buffer::UniformBuffer;
 use crate::access::AccessLock;
 use glow::{Context, HasContext};
 use std::convert::TryFrom;
-use crate::RenderProgram;
+use crate::{RenderProgram, Features};
+use std::num::NonZeroU8;
 
 /**  */
 pub struct UniformGroup {
@@ -50,12 +51,14 @@ impl UniformGroup {
 	pub(crate) unsafe fn bind(
 		&self,
 		gl: &Context,
+		features: &Features,
 		program: &RenderProgram) {
 
 		let mut allocator = Default::default();
 		for (location, binder) in &*self.entries {
 			binder.bind(
 				gl,
+				features,
 				location.as_str(),
 				program,
 				&mut allocator)
@@ -116,12 +119,15 @@ pub(crate) enum OwnedUniformBind {
 		far: TextureFilter,
 		/** How this texture will be filtered when it needs to be upscaled. */
 		near: TextureFilter,
+		/** The level of anisotropic filtering to be applied to the texture. */
+		anisotropy_clamp: Option<NonZeroU8>
 	}
 }
 impl OwnedUniformBind {
 	unsafe fn bind(
 		&self,
 		gl: &Context,
+		features: &Features,
 		target: &str,
 		program: &RenderProgram,
 		allocator: &mut Allocator) {
@@ -152,7 +158,12 @@ impl OwnedUniformBind {
 					i32::try_from(buffer.len()).expect("buffer is \
 						too big for shader use"));
 			},
-			OwnedUniformBind::Texture { texture, far, near } => {
+			OwnedUniformBind::Texture {
+				texture,
+				far,
+				near,
+				anisotropy_clamp } => {
+
 				/* Check whether this target is active in the program. */
 				if let None = program.uniforms.get(target) {
 					trace!("tried to bind to the inactive uniform \"{}\". data \
@@ -169,15 +180,39 @@ impl OwnedUniformBind {
 				let slot = allocator.next_texture();
 				gl.active_texture(glow::TEXTURE0 + slot);
 				gl.bind_texture(glow::TEXTURE_2D, Some(texture.inner.texture));
+
+				/* Enable or disable anisotropic filtering for this texture. */
+				match anisotropy_clamp {
+					Some(_) if !features.sampler_anisotropy =>
+						panic!("Tried to bind a texture with anisotropic \
+							filtering, even though the current context does not \
+							support it. This must have been caught at the time \
+							of the creation of this bind group, not here."),
+					Some(clamp) if features.sampler_anisotropy => {
+						/* Enable anisotropic filtering. */
+						gl.tex_parameter_f32(
+							glow::TEXTURE_2D,
+							glow::TEXTURE_MAX_ANISOTROPY_EXT,
+							f32::from(clamp.get()))
+					},
+					None if features.sampler_anisotropy => {
+						/* Disable anisotropic filtering. */
+						gl.tex_parameter_f32(
+							glow::TEXTURE_2D,
+							glow::TEXTURE_MAX_ANISOTROPY_EXT,
+							1.0)
+					}
+					_ => {}
+				}
+
 				gl.tex_parameter_i32(
 					glow::TEXTURE_2D,
 					glow::TEXTURE_MAG_FILTER,
-					i32::try_from(near.as_opengl()).unwrap());
+					i32::try_from(near.as_opengl(false)).unwrap());
 				gl.tex_parameter_i32(
 					glow::TEXTURE_2D,
 					glow::TEXTURE_MIN_FILTER,
-					i32::try_from(far.as_opengl()).unwrap());
-
+					i32::try_from(far.as_opengl(true)).unwrap());
 				gl.uniform_1_i32(
 					Some(&location),
 					i32::try_from(slot).unwrap());
@@ -213,5 +248,16 @@ pub enum UniformBind<'a> {
 		far: TextureFilter,
 		/** How this texture will be filtered when it needs to be upscaled. */
 		near: TextureFilter,
+		/** The level of anisotropic filtering to be applied to the texture.
+		 *
+		 * # Panic
+		 * This is only available when the [`sampler_anisotropy`] feature is
+		 * present in the context. If this value is enabled for a context in
+		 * which that feature is not present and this uniform is bound, the
+		 * binding functions will panic.
+		 *
+		 * [`sampler_anisotropy`]: crate::Features::sampler_anisotropy
+		 */
+		anisotropy_clamp: Option<NonZeroU8>
 	}
 }
