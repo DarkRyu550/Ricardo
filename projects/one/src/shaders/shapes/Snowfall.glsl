@@ -14,6 +14,8 @@ layout(std140) uniform rc_global
 {
 	mat4 MountainWorldTransformation;
 	mat4 SnowflakeWorldTransformation;
+	mat4 BackwallWorldTransformation;
+	mat4 WaterfallWorldTransformation;
 	mat4 ViewProjectionTransformation;
 
 	vec2  LightPosition;
@@ -30,6 +32,16 @@ layout(std140) uniform rc_mountains
 layout(std140) uniform rc_snowflakes
 {
 	Instance Snowflakes[MAX_INSTANCES];
+};
+
+layout(std140) uniform rc_backwalls
+{
+	Instance Backwalls[MAX_INSTANCES];
+};
+
+layout(std140) uniform rc_waterfalls
+{
+	Instance Waterfalls[MAX_INSTANCES];
 };
 
 in vec3 tt_vert_position;

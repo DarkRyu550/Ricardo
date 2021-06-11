@@ -58,9 +58,9 @@ out vec3  vs_tranmission_tint;
 void main()
 {
 	vec4 position = vec4(tt_vert_position, 1.0);
-	     position = MountainWorldTransformation * position;
+	     position = WaterfallWorldTransformation * position;
 
-	vec3 offset = Mountains[gl_InstanceID].position;
+	vec3 offset = Waterfalls[gl_InstanceID].position;
 	position.x += offset.x;
 	position.y += offset.y;
 	position.z += offset.z;
