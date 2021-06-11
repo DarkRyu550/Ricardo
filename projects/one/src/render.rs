@@ -2,10 +2,13 @@ use gavle::*;
 use support::{Vertex, Matrix4, Camera, Projection};
 use std::convert::TryFrom;
 use crate::scene::Scene;
+use std::hint::unreachable_unchecked;
 
 pub struct Renderer {
 	mountains: Mountains,
 	snowfall: Snowfall,
+	backwall: Backwall,
+	waterfall: Waterfall,
 	uniforms: Uniforms,
 }
 impl Renderer {
@@ -13,6 +16,8 @@ impl Renderer {
 		Self {
 			mountains: Mountains::new(device),
 			snowfall: Snowfall::new(device),
+			backwall: Backwall::new(device),
+			waterfall: Waterfall::new(device),
 			uniforms: Uniforms::new(device),
 		}
 	}
@@ -68,6 +73,168 @@ impl Renderer {
 		pass.set_index_buffer(&self.mountains.geometry.1);
 
 		pass.draw_indexed(0..27, self.uniforms.mountains.len());
+
+		/* Render the backwall. */
+		pass.set_pipeline(&self.backwall.pipeline);
+		pass.set_vertex_buffer(&self.backwall.geometry.0);
+		pass.set_index_buffer(&self.backwall.geometry.1);
+
+		pass.draw_indexed(0..27, self.uniforms.backwalls.len());
+
+		/* Render the waterfall. */
+		pass.set_pipeline(&self.waterfall.pipeline);
+		pass.set_vertex_buffer(&self.waterfall.geometry.0);
+		pass.set_index_buffer(&self.waterfall.geometry.1);
+
+		pass.draw_indexed(0..27, self.uniforms.waterfalls.len());
+	}
+}
+
+pub struct Waterfall {
+	pipeline: RenderPipeline,
+	geometry: (VertexBuffer, IndexBuffer),
+}
+
+impl Waterfall {
+	pub fn new(device: &Device) -> Self {
+		const GEOMETRY: &'static [Vertex] = &[
+			Vertex::new_unchecked_with_color([-0.05, -1.0, -0.1], [0.5, 1.0], [0.5, 0.5, 0.9], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.05,  1.0, -0.1], [0.5, 1.0], [0.5, 0.5, 0.9], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.05, -1.0, -0.1], [0.5, 1.0], [0.5, 0.5, 0.9], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.05,  1.0, -0.1], [0.5, 1.0], [0.5, 0.5, 0.9], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.035,  0.9, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.025,  0.8, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.025,  1.0, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.005,  0.6, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.005,  0.5, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.005,  0.7, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.005,  0.2, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.005,  0.1, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.005,  0.3, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.025, -0.2, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.035, -0.3, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.035, -0.1, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.035, -0.2, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.025, -0.3, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.025, -0.1, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.005, -0.6, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.005, -0.7, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.005, -0.5, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.025, -0.9, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.035, -1.0, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.035, -0.8, -0.15], [0.5, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+		];
+		const INDICES: &'static [u16] = &[3, 1, 0, 0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
+		let geometry = upload_geometry(device, GEOMETRY, INDICES);
+
+		use crate::shaders::waterfall as shaders;
+		let vertex_shader = device.create_vertex_shader(shaders::VERTEX)
+			.unwrap();
+		let fragment_shader = device.create_fragment_shader(shaders::FRAGMENT)
+			.unwrap();
+
+		let pipeline = device.create_render_pipeline(
+			&RenderPipelineDescriptor {
+				vertex: VertexState {
+					shader: &vertex_shader,
+					buffer: &Vertex::LAYOUT
+				},
+				primitive_state: PrimitiveState {
+					topology: PrimitiveTopology::TriangleList,
+					index_format: IndexFormat::Uint16,
+					front_face: FrontFace::Ccw,
+					cull_mode: CullMode::None,
+					polygon_mode: PolygonMode::Fill
+				},
+				fragment: Some(FragmentState {
+					shader: &fragment_shader,
+					targets: ColorTargetState {
+						alpha_blend: BlendState::REPLACE,
+						color_blend: BlendState::REPLACE,
+						write_mask: ColorWrite::ALL
+					}
+				}),
+				depth_stencil: Some(DepthStencilState {
+					depth_write_enabled: true,
+					depth_compare: CompareFunction::Less,
+					stencil: StencilState::IGNORE
+				})
+			}).unwrap();
+
+		Self { pipeline, geometry }
+	}
+}
+
+pub struct Backwall {
+	pipeline: RenderPipeline,
+	geometry: (VertexBuffer, IndexBuffer),
+}
+
+impl Backwall {
+	pub fn new(device: &Device) -> Self {
+		const GEOMETRY: &'static [Vertex] = &[
+			Vertex::new_unchecked_with_color([-1.0, -1.0, 0.0], [0.0, 0.0], [0.08, 0.092, 0.11], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-1.0,  1.0, 0.0], [0.5, 1.0], [0.08, 0.092, 0.11], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 1.0, -1.0, 0.0], [1.0, 0.0], [0.08, 0.092, 0.11], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 1.0,  1.0, 0.0], [0.5, 1.0], [0.08, 0.092, 0.11], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-1.0, -1.0, -0.01], [0.5, 1.0], [0.24, 0.276, 0.33], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-1.0,  1.0, -0.01], [0.5, 1.0], [0.24, 0.276, 0.33], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.8,  0.0, -0.01], [0.5, 1.0], [0.24, 0.276, 0.33], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-1.0, -1.0, -0.01], [0.5, 1.0], [0.32, 0.368, 0.44], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.6, -1.0, -0.01], [0.5, 1.0], [0.32, 0.368, 0.44], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.8,  0.0, -0.01], [0.5, 1.0], [0.32, 0.368, 0.44], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.1,  1.0,  -0.01], [0.5, 1.0], [0.24, 0.276, 0.33], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.0,  0.35, -0.01], [0.5, 1.0], [0.24, 0.276, 0.33], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.1,  1.0,  -0.01], [0.5, 1.0], [0.24, 0.276, 0.33], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([-0.1,  1.0, -0.005], [0.5, 1.0], [0.16, 0.184, 0.22], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.2, -1.0, -0.005], [0.5, 1.0], [0.16, 0.184, 0.22], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 1.0, -1.0, -0.005], [0.5, 1.0], [0.16, 0.184, 0.22], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.7,  1.0, -0.005], [0.5, 1.0], [0.16, 0.184, 0.22], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.2, -1.0,  -0.01], [0.5, 1.0], [0.32, 0.368, 0.44], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.1, -0.35, -0.01], [0.5, 1.0], [0.32, 0.368, 0.44], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.0, -1.0,  -0.01], [0.5, 1.0], [0.32, 0.368, 0.44], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 1.0, -1.0, -0.01], [0.5, 1.0], [0.32, 0.368, 0.44], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 1.0,  0.0, -0.01], [0.5, 1.0], [0.32, 0.368, 0.44], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+			Vertex::new_unchecked_with_color([ 0.9, -0.35, -0.01], [0.5, 1.0], [0.32, 0.368, 0.44], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+		];
+		const INDICES: &'static [u16] = &[3, 1, 0, 0, 2, 3, 6, 5, 4, 8, 9, 7, 12, 10, 11, 15, 13, 14, 15, 16, 13, 17, 18, 19, 20, 21, 22];
+		let geometry = upload_geometry(device, GEOMETRY, INDICES);
+
+		use crate::shaders::backwall as shaders;
+		let vertex_shader = device.create_vertex_shader(shaders::VERTEX)
+			.unwrap();
+		let fragment_shader = device.create_fragment_shader(shaders::FRAGMENT)
+			.unwrap();
+
+		let pipeline = device.create_render_pipeline(
+			&RenderPipelineDescriptor {
+				vertex: VertexState {
+					shader: &vertex_shader,
+					buffer: &Vertex::LAYOUT
+				},
+				primitive_state: PrimitiveState {
+					topology: PrimitiveTopology::TriangleList,
+					index_format: IndexFormat::Uint16,
+					front_face: FrontFace::Ccw,
+					cull_mode: CullMode::Back,
+					polygon_mode: PolygonMode::Fill
+				},
+				fragment: Some(FragmentState {
+					shader: &fragment_shader,
+					targets: ColorTargetState {
+						alpha_blend: BlendState::REPLACE,
+						color_blend: BlendState::REPLACE,
+						write_mask: ColorWrite::ALL
+					}
+				}),
+				depth_stencil: Some(DepthStencilState {
+					depth_write_enabled: true,
+					depth_compare: CompareFunction::Less,
+					stencil: StencilState::IGNORE
+				})
+			}).unwrap();
+
+		Self { pipeline, geometry }
 	}
 }
 
@@ -223,6 +390,8 @@ impl Instance {
 struct Globals {
 	mountain_world: Matrix4,
 	snowflake_world: Matrix4,
+	backwall_world: Matrix4,
+	waterfall_world: Matrix4,
 	view_projection: Matrix4,
 
 	light_position: [f32; 2],
@@ -255,6 +424,20 @@ impl Globals {
 			1.0) * snowflake_world;
 		let snowflake_world = snowflake_world.transpose();
 
+		let backwall_world = Matrix4::identity();
+		let backwall_world = Matrix4::scale(
+			1.0,
+			0.3,
+			1.0) * backwall_world;
+		let backwall_world = backwall_world.transpose();
+
+		let waterfall_world = Matrix4::identity();
+		let waterfall_world = Matrix4::scale(
+			1.0,
+			0.3,
+			1.0) * waterfall_world;
+		let waterfall_world = waterfall_world.transpose();
+
 		let view_projection = camera.matrix(aspect);
 		let view_projection = view_projection.transpose();
 
@@ -266,6 +449,8 @@ impl Globals {
 		Self {
 			mountain_world,
 			snowflake_world,
+			backwall_world,
+			waterfall_world,
 			view_projection,
 			light_position,
 			far_plane,
@@ -283,6 +468,8 @@ struct Uniforms {
 	global: UniformVec<Globals>,
 	mountains: UniformVec<Instance>,
 	snowflakes: UniformVec<Instance>,
+	backwalls: UniformVec<Instance>,
+	waterfalls: UniformVec<Instance>,
 
 	group: UniformGroup,
 }
@@ -317,6 +504,28 @@ impl Uniforms {
 		let snowflakes = UniformVec::with_capacity(
 			device,
 			Self::MAX_SNOWFLAKES);
+		let backwalls = UniformVec::with_items(
+			device,
+			1,
+			|| {
+				Instance::new([0.0, -0.3, 1.0], [1.0, 1.0])
+			}
+		);
+		let mut instance = 0u32;
+		let waterfalls = UniformVec::with_items(
+			device,
+			2,
+			|| {
+				let data = Instance::new(
+					match instance {
+						0 => [ 0.45, -0.3, 1.0],
+						1 => [-0.45, -0.3, 1.0],
+						_ => unreachable!(),
+					}, [1.0, 1.0]);
+				instance += 1;
+				data
+			}
+		);
 
 		let group = device.create_uniform_bind_group(
 			&UniformGroupDescriptor {
@@ -339,6 +548,18 @@ impl Uniforms {
 							buffer: snowflakes.buffer()
 						}
 					},
+					UniformGroupEntry {
+						binding: "rc_backwalls".into(),
+						kind: UniformBind::Buffer {
+							buffer: backwalls.buffer(),
+						}
+					},
+					UniformGroupEntry {
+						binding: "rc_waterfalls".into(),
+						kind: UniformBind::Buffer {
+							buffer: waterfalls.buffer(),
+						}
+					}
 				]
 			});
 
@@ -346,6 +567,8 @@ impl Uniforms {
 			global,
 			mountains,
 			snowflakes,
+			backwalls,
+			waterfalls,
 			group
 		}
 	}

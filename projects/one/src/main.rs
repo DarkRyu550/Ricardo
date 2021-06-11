@@ -87,7 +87,7 @@ pub fn run(env: Environment) {
 		let delta = (delta_time)();
 		if direction != 0.0 {
 			angle += std::f32::consts::FRAC_PI_8 * delta.as_secs_f32() * direction.signum();
-			angle.clamp(0.0, std::f32::consts::PI);
+			angle = angle.clamp(0.0, std::f32::consts::PI);
 		}
 
 		scene.light_position[0] = angle.cos() * 2.0;
