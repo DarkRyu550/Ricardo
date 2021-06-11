@@ -136,6 +136,11 @@ impl<'a> RenderPass<'a> {
 		self.stencil_setup = false;
 	}
 
+	pub fn set_pipeline(&mut self, pipeline: &'a RenderPipeline) {
+		self.pipeline = pipeline;
+		self.general_setup = false;
+	}
+
 	/** Perform the setup of the pipeline for subsequent render command, if
 	 * required. Importantly, this function does not control the stencil state.
 	 */

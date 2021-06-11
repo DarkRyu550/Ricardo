@@ -4,7 +4,7 @@ extern crate log;
 use glow::{HasContext, Context};
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 use crate::texture::InnerTexture;
 
 mod buffer;
@@ -496,7 +496,11 @@ impl Device {
 		#[cfg(feature = "mipmap-generation")]
 		let mut mip_buffer: Option<Vec<u8>> = None;
 
+		#[cfg(feature = "mipmap-generation")]
+		use std::convert::TryInto;
+
 		/* Determine the number of bytes per pixel. */
+		#[cfg(feature = "mipmap-generation")]
 		let bytes_per_pixel = match descriptor.format {
 			TextureFormat::Rgba8Unorm => 4 * 1,
 			TextureFormat::Rgba32Float => 4 * 4,

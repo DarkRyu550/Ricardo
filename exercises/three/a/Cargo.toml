@@ -8,6 +8,6 @@ gavle       = { path = "../../../gavle" }
 support     = { path = "../../../support" }
 environment = { path = "../../../environment" }
 bytemuck    = { version = "1", features = ["derive"] }
-winit       = "0.24"
+winit       = "0.25"
 obj-rs      = "0.6"
 image       = "0.23"

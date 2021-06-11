@@ -7,5 +7,5 @@ edition = "2018"
 [dependencies]
 environment = { path = "../../environment" }
 gavle       = { path = "../../gavle" }
-winit       = "0.24"
+winit       = "0.25"
 bytemuck    = { version = "1", features = ["derive"] }

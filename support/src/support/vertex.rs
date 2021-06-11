@@ -10,6 +10,8 @@ pub struct Vertex {
 	position: [f32; 3],
 	/** Texture coordinate data in two-dimensional sampler space. */
 	texture: [f32; 2],
+	/** Color value associated with this vertex. */
+	color: [f32; 3],
 	/** Normal vector data in normalized three dimensional space. */
 	normal: [f32; 3],
 	/** Vector tangent to the normal and aligned to the texture plane. */
@@ -20,7 +22,7 @@ pub struct Vertex {
 impl Vertex {
 	/** Layout of buffers that use this structure as their vertex type. */
 	pub const LAYOUT: VertexBufferLayout<'static> = VertexBufferLayout {
-		array_stride: 56,
+		array_stride: 68,
 		attributes: &[
 			VertexAttribute {
 				kind: VertexType::F32,
@@ -38,18 +40,24 @@ impl Vertex {
 				kind: VertexType::F32,
 				components: VertexComponents::Three,
 				offset: 20,
-				binding: Cow::Borrowed("tt_vert_normal")
+				binding: Cow::Borrowed("tt_vert_color")
 			},
 			VertexAttribute {
 				kind: VertexType::F32,
 				components: VertexComponents::Three,
 				offset: 32,
-				binding: Cow::Borrowed("tt_vert_tangent")
+				binding: Cow::Borrowed("tt_vert_normal")
 			},
 			VertexAttribute {
 				kind: VertexType::F32,
 				components: VertexComponents::Three,
 				offset: 44,
+				binding: Cow::Borrowed("tt_vert_tangent")
+			},
+			VertexAttribute {
+				kind: VertexType::F32,
+				components: VertexComponents::Three,
+				offset: 56,
 				binding: Cow::Borrowed("tt_vert_bitangent")
 			},
 		]
@@ -112,6 +120,7 @@ impl Vertex {
 		Ok(Self {
 			position,
 			texture,
+			color: [0.0; 3],
 			normal,
 			tangent,
 			bitangent
@@ -129,6 +138,69 @@ impl Vertex {
 		Self {
 			position,
 			texture,
+			color: [0.0; 3],
+			normal,
+			tangent,
+			bitangent
+		}
+	}
+
+	/** Create a new vertex, checking for the validity of the parameters.
+	 *
+	 * In order to be valid, a vertex must satisfy the following conditions:
+	 * 1. The `normal`, `tangent` and `bitangent` vectors must together form a
+	 *    right-handed or left-handed orthonormal base in three-dimensional
+	 *    space.
+	 */
+	pub fn try_new_with_color(
+		position: [f32; 3],
+		texture: [f32; 2],
+		color: [f32; 3],
+		normal: [f32; 3],
+		tangent: [f32; 3],
+		bitangent: [f32; 3]) -> Result<Self, InvalidVertex> {
+
+		/* Check whether the NTB vectors form an orthonormal base. */
+		let ntb_determinant = Matrix4::from_row_major_array([
+			normal[0], tangent[0], bitangent[0], 0.0,
+			normal[1], tangent[1], bitangent[1], 0.0,
+			normal[2], tangent[2], bitangent[2], 0.0,
+			0.0,        0.0,          0.0, 1.0,
+		]).det();
+
+		/* Tolerate a bit of numerical error. */
+		if f32::round(ntb_determinant.abs() * 100.0) != 100.0 {
+			return Err(InvalidVertex::NonOrthonormalNBTVectors {
+				normal,
+				tangent,
+				bitangent,
+				determinant: ntb_determinant
+			})
+		}
+
+		Ok(Self {
+			position,
+			texture,
+			color,
+			normal,
+			tangent,
+			bitangent
+		})
+	}
+
+	/** Create a new vertex. */
+	pub const fn new_unchecked_with_color(
+		position: [f32; 3],
+		texture: [f32; 2],
+		color: [f32; 3],
+		normal: [f32; 3],
+		tangent: [f32; 3],
+		bitangent: [f32; 3]) -> Self {
+
+		Self {
+			position,
+			texture,
+			color,
 			normal,
 			tangent,
 			bitangent
@@ -143,6 +215,11 @@ impl Vertex {
 	/** Texture coordinate data in two-dimensional sampler space. */
 	pub fn texture(&self) -> [f32; 2] {
 		self.texture
+	}
+
+	/** Color value in RGB color space. */
+	pub fn color(&self) -> [f32; 3] {
+		self.color
 	}
 
 	/** Normal vector data in normalized three dimensional space. */
